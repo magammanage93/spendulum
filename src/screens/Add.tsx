@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { addExpense, deleteExpense, getTodayIsoDay, listOtherSubCategories, OTHER_CATEGORY_ID } from '../db'
 import { Keypad } from '../components/Keypad'
 import { OtherSheet } from '../components/OtherSheet'
@@ -42,6 +42,7 @@ export function AddScreen({ categories, currency, onDataChanged }: AddScreenProp
   const [note, setNote] = useState('')
   const [date, setDate] = useState(getTodayIsoDay())
   const [undo, setUndo] = useState<UndoState>(null)
+  const otherInputRef = useRef<HTMLInputElement>(null)
 
   const amount = useMemo(() => Number.parseFloat(amountRaw) || 0, [amountRaw])
 
@@ -117,18 +118,19 @@ export function AddScreen({ categories, currency, onDataChanged }: AddScreenProp
     onDataChanged()
   }
 
-  const handleCategorySelect = async (category: Category): Promise<void> => {
+  const handleCategorySelect = (category: Category): void => {
     if (amount <= 0) {
       return
     }
     if (category.id === OTHER_CATEGORY_ID) {
-      const suggestions = await listOtherSubCategories()
-      setOtherSuggestions(suggestions)
+      // iOS only shows the keyboard when focus() runs synchronously inside the touch handler.
+      otherInputRef.current?.focus()
       setPendingOtherAmount(amount)
       setOtherOpen(true)
+      void listOtherSubCategories().then(setOtherSuggestions)
       return
     }
-    await saveExpense(category.id)
+    void saveExpense(category.id)
   }
 
   const saveOther = async (subCategory: string): Promise<void> => {
@@ -172,7 +174,7 @@ export function AddScreen({ categories, currency, onDataChanged }: AddScreenProp
         <RadialMenu
           categories={categories}
           onOpenChange={setRadialOpen}
-          onSelect={(category) => void handleCategorySelect(category)}
+          onSelect={handleCategorySelect}
         />
       </div>
 
@@ -210,6 +212,7 @@ export function AddScreen({ categories, currency, onDataChanged }: AddScreenProp
       <Keypad disabled={radialOpen} onTap={handleKeypadTap} />
 
       <OtherSheet
+        inputRef={otherInputRef}
         open={otherOpen}
         suggestions={otherSuggestions}
         onCancel={() => {
